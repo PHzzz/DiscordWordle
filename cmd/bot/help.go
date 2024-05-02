@@ -7,26 +7,12 @@ import (
 
 func helpResponse(s *discordgo.Session, m *discordgo.MessageCreate, botMentionToken string) {
 	var response response
-	response.Text = fmt.Sprintf("`%s` - register a score for the current Wordle game. Only one is score is allowed for each game.\n"+
-		"`%s` - update existing Wordle score for a game\n"+
-		"`%s` - get your past Wordle scores\n"+
-		"`%s` - Turn off quip responses, the bot will continue to add emojis to the request if it understood the input\n"+
-		"`%s` - Turn quip responses back on if previously disabled\n"+
-		"`%s` - See a list of quips and IDs that can be referenced to delete them\n"+
-		"`%s` - Delete a quip with a given ID\n"+
-		"`%s` - Add your own sass for the bot to use as a reply for a specific number\n"+
-		"`%s` - view the scoreboard of you and your friends\n"+
-		"`%s` - view last week's (game number/7) scoreboard\n"+
-		"Join the DiscordWordle server for help with the bot: https://discord.gg/PcZ74rBsTE\n"+
-		"Report issue or help improve this bot at <https://github.com/alexberryman/DiscordWordle>\n",
-		fmt.Sprintf("%s %s 204 5/6 <emoji blocks>", botMentionToken, cmdWordle),
-		fmt.Sprintf("%s %s 204 2/6", botMentionToken, cmdUpdate),
+	response.Text = fmt.Sprintf("`%s` - piereģistrēt šodienas Vārduļa rezultātu. Katrai spēlei drīkst piereģistrēt tikai vienu rezultātu.\n"+
+		"`%s` - apskatīties savus iepriekšējos Vārduļa rezultātus\n"+
+		"`%s` - apskatīties savu un draudziņu rezultātu tabulu\n"+
+		"`%s` - apskatīties pagājušās nedēļas rekordistus\n",
+		fmt.Sprintf("%s %s 15/12/2021 5/6 <emoji blocks>", botMentionToken, cmdWordle),
 		fmt.Sprintf("%s %s", botMentionToken, cmdHistory),
-		fmt.Sprintf("%s %s %s", botMentionToken, cmdQuip, cmdQuipDisable),
-		fmt.Sprintf("%s %s %s", botMentionToken, cmdQuip, cmdQuipEnable),
-		fmt.Sprintf("%s %s %s", botMentionToken, cmdQuip, cmdQuipList),
-		fmt.Sprintf("%s %s %s <quip_id>", botMentionToken, cmdQuip, cmdQuipDelete),
-		fmt.Sprintf("%s %s 3 Wow, you seem really smart!", botMentionToken, cmdQuip),
 		fmt.Sprintf("%s %s", botMentionToken, cmdScoreboard),
 		fmt.Sprintf("%s %s %s", botMentionToken, cmdScoreboard, cmdPreviousWeek),
 	)

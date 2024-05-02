@@ -4,16 +4,19 @@ import (
 	wordle "DiscordWordle/internal/wordle/generated-code"
 	"bytes"
 	"context"
-	"database/sql"
+
+	// "database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/bwmarrin/discordgo"
-	"github.com/rs/zerolog/log"
 	"strconv"
 	"text/tabwriter"
+	"time"
+
+	"github.com/bwmarrin/discordgo"
+	"github.com/rs/zerolog/log"
 )
 
-func persistScore(ctx context.Context, m *discordgo.MessageCreate, s *discordgo.Session, a wordle.Account, gameId int, guesses int) {
+func persistScore(ctx context.Context, m *discordgo.MessageCreate, s *discordgo.Session, a wordle.Account, gameId time.Time, guesses int) {
 	response, scoreObj := buildScoreObjFromInput(a, gameId, guesses)
 
 	scoreParams := wordle.CreateScoreParams{
@@ -28,19 +31,19 @@ func persistScore(ctx context.Context, m *discordgo.MessageCreate, s *discordgo.
 	if err != nil {
 		log.Error().Err(err).Str("server_id", m.GuildID).Str("content", m.Content).Str("author", m.Author.ID).Msg("Failed to persist score")
 		response.Emoji = "⛔"
-		serverHasDisabledQuips, _ := q.CheckIfServerHasDisabledQuips(ctx, m.GuildID)
+		/* serverHasDisabledQuips, _ := q.CheckIfServerHasDisabledQuips(ctx, m.GuildID)
 		if len(serverHasDisabledQuips) == 0 {
 			response.Text = "You already created a score for this game, try updating it if it's wrong"
-		} else {
-			response.Text = ""
-		}
+		} else { */
+		response.Text = ""
+		/* } */
 	} else {
 		response = scoreColorfulResponse(guesses, ctx, m)
 	}
 	flushEmojiAndResponseToDiscord(s, m, response)
 }
 
-func enableQuips(ctx context.Context, m *discordgo.MessageCreate, s *discordgo.Session) {
+/* func enableQuips(ctx context.Context, m *discordgo.MessageCreate, s *discordgo.Session) {
 	var response response
 
 	q := wordle.New(db)
@@ -165,7 +168,7 @@ func persistQuip(ctx context.Context, m *discordgo.MessageCreate, s *discordgo.S
 
 	response.Emoji = "🤣"
 	flushEmojiAndResponseToDiscord(s, m, response)
-}
+} */
 
 func getHistory(ctx context.Context, m *discordgo.MessageCreate, s *discordgo.Session, a wordle.Account) {
 
@@ -181,15 +184,29 @@ func getHistory(ctx context.Context, m *discordgo.MessageCreate, s *discordgo.Se
 
 	if err != nil {
 		response.Emoji = "⁉️"
-		response.Text = "Not finding any previous scores"
+		response.Text = "Neatrodu nevienu rezultātu"
 	} else {
 		response.Emoji = "👍"
-		response.Text = fmt.Sprintf("Found dem %d scores, boss!", len(scores))
+		response.Text = fmt.Sprintf("Atradu %d rezultātus, priekšniek!", len(scores))
 		for _, v := range scores {
-			response.Text += fmt.Sprintf("\n game: %d - %d/6", v.GameID, v.Guesses)
+			response.Text += fmt.Sprintf("\n Spēle: %s - %d/6", v.GameID.Format("02/01/2006"), v.Guesses)
 		}
 	}
 	flushEmojiAndResponseToDiscord(s, m, response)
+}
+
+func findMinAndMax(a []time.Time) (min time.Time, max time.Time) {
+	min = a[0]
+	max = a[0]
+	for _, value := range a {
+		if value.Before(min) {
+			min = value
+		}
+		if value.After(max) {
+			max = value
+		}
+	}
+	return min, max
 }
 
 func getScoreboard(ctx context.Context, m *discordgo.MessageCreate, s *discordgo.Session) {
@@ -201,7 +218,7 @@ func getScoreboard(ctx context.Context, m *discordgo.MessageCreate, s *discordgo
 
 	if err != nil {
 		response.Emoji = "⁉️"
-		response.Text = "Not finding any previous scores"
+		response.Text = "Neatradu nevienu rezultātu"
 	} else {
 		response.Emoji = "🔢"
 
@@ -210,7 +227,7 @@ func getScoreboard(ctx context.Context, m *discordgo.MessageCreate, s *discordgo
 
 		var maxNumOfGames int
 		maxNumOfGames = 0
-		_, _ = fmt.Fprintln(w, "Name\tGuesses\tTotal\t")
+		_, _ = fmt.Fprintln(w, "Vieta\tVārds\tMinējumi\tPunkti\t")
 		for _, v := range scores {
 
 			displayGameGuesses := dashDisplayForMissingScores(expectedGames, v)
@@ -218,25 +235,28 @@ func getScoreboard(ctx context.Context, m *discordgo.MessageCreate, s *discordgo
 			if int(v.GamesCount) > maxNumOfGames {
 				maxNumOfGames = int(v.GamesCount)
 			}
-			_, _ = fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%d\t", v.Nickname, displayGameGuesses, v.Total))
+			_, _ = fmt.Fprintf(w, "%d.\t%s\t%s\t%d\t\n", v.Position, v.Nickname, displayGameGuesses, v.Total)
 		}
 
 		var lwBuf bytes.Buffer
+		var lwMinDate time.Time
+		var lwMaxDate time.Time
 		lw := tabwriter.NewWriter(&lwBuf, 0, 0, 3, ' ', 0)
 		if maxNumOfGames == 1 {
 			lastWeekScores, _ := q.GetScoresByServerIdPreviousWeek(ctx, m.GuildID)
 			lastWeekExpectedGames, _ := q.GetExpectedPreviousWeekGames(ctx, m.GuildID)
-			_, _ = fmt.Fprintln(lw, "Name\tGuesses\tTotal\t")
+			lwMinDate, lwMaxDate = findMinAndMax(lastWeekExpectedGames)
+			_, _ = fmt.Fprintln(lw, "Vieta\tVārds\tMinējumi\tPunkti\t")
 			for _, lwv := range lastWeekScores {
 				displayGameGuesses := dashDisplayForMissingScores(lastWeekExpectedGames, wordle.GetScoresByServerIdRow(lwv))
-				_, _ = fmt.Fprintln(lw, fmt.Sprintf("%s\t%s\t%d\t", lwv.Nickname, displayGameGuesses, lwv.Total))
+				_, _ = fmt.Fprintf(lw, "%d.\t%s\t%s\t%d\t\n", lwv.Position, lwv.Nickname, displayGameGuesses, lwv.Total)
 			}
 			_ = lw.Flush()
 		}
 
 		_ = w.Flush()
 		if len(lwBuf.String()) > 0 {
-			response.Text = fmt.Sprintf("**This week:**\n```\n%s\n```\n**Last Week:**\n```\n%s\n```", buf.String(), lwBuf.String())
+			response.Text = fmt.Sprintf("**Šonedēļ:**\n```\n%s\n```\n**Pagājušonedēļ (%s - %s):**\n```\n%s\n```", buf.String(), lwMinDate.Format("02/01/2006"), lwMaxDate.Format("02/01/2006"), lwBuf.String())
 		} else {
 			response.Text = fmt.Sprintf("```\n%s\n```", buf.String())
 		}
@@ -244,20 +264,20 @@ func getScoreboard(ctx context.Context, m *discordgo.MessageCreate, s *discordgo
 	flushEmojiAndResponseToDiscord(s, m, response)
 }
 
-func dashDisplayForMissingScores(expectedGames []int32, v wordle.GetScoresByServerIdRow) []string {
+func dashDisplayForMissingScores(expectedGames []time.Time, v wordle.GetScoresByServerIdRow) []string {
 	var displayGameGuesses []string
 	for _, g := range expectedGames {
 		var nestedGameGuessesMap []map[string]int
-		cleanGameGuesses := make(map[int]int)
+		cleanGameGuesses := make(map[string]int)
 		_ = json.Unmarshal(v.GameGuesses, &nestedGameGuessesMap)
 		for _, gameGuess := range nestedGameGuessesMap {
 			for stringGameId, guesses := range gameGuess {
-				gameId, _ := strconv.Atoi(stringGameId)
-				cleanGameGuesses[gameId] = guesses
+				gameId, _ := time.Parse("2006-01-02", stringGameId)
+				// TODO: check why doesn't work without reformatting time to string
+				cleanGameGuesses[gameId.Format("2006-01-02")] = guesses
 			}
 		}
-
-		if val, ok := cleanGameGuesses[int(g)]; ok {
+		if val, ok := cleanGameGuesses[g.Format("2006-01-02")]; ok {
 			displayGameGuesses = append(displayGameGuesses, strconv.Itoa(val))
 		} else {
 			displayGameGuesses = append(displayGameGuesses, "-")
@@ -270,31 +290,45 @@ func getPreviousScoreboard(ctx context.Context, m *discordgo.MessageCreate, s *d
 	q := wordle.New(db)
 	scores, err := q.GetScoresByServerIdPreviousWeek(ctx, m.GuildID)
 	lastWeekExpectedGames, _ := q.GetExpectedPreviousWeekGames(ctx, m.GuildID)
+	lwMinDate, lwMaxDate := findMinAndMax(lastWeekExpectedGames)
 	var response response
+	var mentionList string
+	var medal string
 
 	if err != nil {
 		response.Emoji = "⁉️"
-		response.Text = "Not finding any previous scores"
+		response.Text = "Neatradu nevienu rezultātu"
 	} else {
 		response.Emoji = "🔢"
 
 		var buf bytes.Buffer
 		w := tabwriter.NewWriter(&buf, 0, 0, 3, ' ', 0)
 
-		_, _ = fmt.Fprintln(w, "Name\tGuesses\tTotal\t")
+		_, _ = fmt.Fprintln(w, "Vieta\tVārds\tMinējumi\tPunkti\t")
 		for _, v := range scores {
 			displayGameGuesses := dashDisplayForMissingScores(lastWeekExpectedGames, wordle.GetScoresByServerIdRow(v))
-			_, _ = fmt.Fprintln(w, fmt.Sprintf("%s\t%s\t%d\t", v.Nickname, displayGameGuesses, v.Total))
+			_, _ = fmt.Fprintf(w, "%d.\t%s\t%s\t%d\t\n", v.Position, v.Nickname, displayGameGuesses, v.Total)
+			switch v.Position {
+			case 1:
+				medal = "🥇"
+			case 2:
+				medal = "🥈"
+			case 3:
+				medal = "🥉"
+			default:
+				medal = ""
+			}
+			mentionList = mentionList + medal + "<@!" + v.DiscordID + "> "
 		}
 
 		_ = w.Flush()
 
-		response.Text = fmt.Sprintf("**Last Week:**\n```\n%s\n```", buf.String())
+		response.Text = fmt.Sprintf("**Pagājušonedēļ (%s - %s):**\n```\n%s\n```%s", lwMinDate.Format("02/01/2006"), lwMaxDate.Format("02/01/2006"), buf.String(), mentionList)
 	}
 	flushEmojiAndResponseToDiscord(s, m, response)
 }
 
-func updateExistingScore(ctx context.Context, m *discordgo.MessageCreate, s *discordgo.Session, a wordle.Account, gameId int, guesses int) {
+/* func updateExistingScore(ctx context.Context, m *discordgo.MessageCreate, s *discordgo.Session, a wordle.Account, gameId int, guesses int) {
 	response, wordlecoreObj := buildScoreObjFromInput(a, gameId, guesses)
 
 	priceParams := wordle.UpdateScoreParams{
@@ -314,14 +348,14 @@ func updateExistingScore(ctx context.Context, m *discordgo.MessageCreate, s *dis
 	}
 
 	flushEmojiAndResponseToDiscord(s, m, response)
-}
+} */
 
-func buildScoreObjFromInput(a wordle.Account, gameId int, guesses int) (response, wordle.WordleScore) {
+func buildScoreObjFromInput(a wordle.Account, gameId time.Time, guesses int) (response, wordle.WordleScore) {
 	var response response
 
 	scoreThing := wordle.WordleScore{
 		DiscordID: a.DiscordID,
-		GameID:    int32(gameId),
+		GameID:    time.Time(gameId),
 		Guesses:   int32(guesses),
 	}
 
@@ -330,16 +364,16 @@ func buildScoreObjFromInput(a wordle.Account, gameId int, guesses int) (response
 
 func scoreColorfulResponse(guesses int, ctx context.Context, m *discordgo.MessageCreate) response {
 	var response response
-	q := wordle.New(db)
+	/* q := wordle.New(db)
 	serverHasDisabledQuips, _ := q.CheckIfServerHasDisabledQuips(ctx, m.GuildID)
 	if len(serverHasDisabledQuips) == 0 {
 		response = selectResponseText(guesses, ctx, m, response)
-	}
+	} */
 	response = selectResponseEmoji(guesses, response)
 	return response
 }
 
-func selectResponseText(guesses int, ctx context.Context, m *discordgo.MessageCreate, response response) response {
+/* func selectResponseText(guesses int, ctx context.Context, m *discordgo.MessageCreate, response response) response {
 	if guesses >= 1 && guesses <= 6 || guesses == noSolutionGuesses {
 		responseParams := wordle.GetQuipByScoreParams{
 			ScoreValue:         int32(guesses),
@@ -357,13 +391,13 @@ func selectResponseText(guesses int, ctx context.Context, m *discordgo.MessageCr
 	}
 
 	return response
-}
+} */
 
 func selectResponseEmoji(guesses int, response response) response {
 	if guesses == 69 {
 		response.Emoji = "♋️"
 	} else if guesses == noSolutionGuesses {
-		response.Emoji = "0️⃣"
+		response.Emoji = "0️⃣" // "<:mau5:665049437688692739"
 	} else if guesses == 1 {
 		response.Emoji = "1️⃣"
 	} else if guesses == 2 {

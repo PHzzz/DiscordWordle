@@ -1,15 +1,14 @@
 package main
 
 import (
-	"DiscordWordle/internal/wordle/generated-code"
+	wordle "DiscordWordle/internal/wordle/generated-code"
 	"context"
+
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
-	"strings"
-	"time"
 )
 
-func updateAccountTimeZone(ctx context.Context, input string, CmdTimeZone string, s *discordgo.Session, m *discordgo.MessageCreate, q *wordle.Queries, a wordle.Account) {
+/* func updateAccountTimeZone(ctx context.Context, input string, CmdTimeZone string, s *discordgo.Session, m *discordgo.MessageCreate, q *wordle.Queries, a wordle.Account) {
 	var response response
 
 	timezoneInput := strings.TrimSpace(strings.Replace(input, CmdTimeZone, "", 1))
@@ -29,7 +28,7 @@ func updateAccountTimeZone(ctx context.Context, input string, CmdTimeZone string
 	})
 
 	flushEmojiAndResponseToDiscord(s, m, response)
-}
+} */
 
 func getOrCreateAccount(ctx context.Context, s *discordgo.Session, m *discordgo.MessageCreate, existingAccount int64, existingNickname int64, q *wordle.Queries) wordle.Account {
 	var account wordle.Account
